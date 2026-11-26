@@ -11,33 +11,25 @@ namespace NetworkingDemo.Client;
 public class ClientCore(IClientSettings settings)
 {
     NetworkClient? _networkClient;
-    private ClientGameSession? _gameSession;
-    public SimState? SimState => _gameSession?.State;
+    private ClientSession? _session;
+    public SimState? SimState => _session?.State;
     public IMatchmaker? Matchmaker => _networkClient?.Matchmaker;
     public readonly TaskCompletionSource ShouldExit = new();
     public event Action? SimReady;
     
     public async Task InitializeAsync(string rootPath)
     {
-        Log.Print("ClientCore: InitializeAsync | Starting initialization", LogLevel.Verbose);
         InitConsoleLogger();
         if (!await LoadConfig(Path.Combine(rootPath, "config")))
         {
-            Log.Print("ClientCore: Initialize config failed", LogLevel.Error);
             return;
         }
         
         // TODO Initialize client logic
         
-        // TODO Initialize networking
-        Log.Print("ClientCore: InitializeAsync | Starting to create network client", LogLevel.Verbose);
         _networkClient = new NetworkClient(BuildDto());
-        Log.Print("ClientCore: InitializeAsync | Initialize network client", LogLevel.Verbose);
         await _networkClient.Init();
-        Log.Print("ClientCore: InitializeAsync | Network client initialized", LogLevel.Verbose);
         _networkClient.SessionNetworkReady += OnNetSessionReady; // TODO move to better place
-        Log.Print("ClientCore: InitializeAsync | Network client OnNetSessionReady connected", LogLevel.Verbose);
-        Log.Print("ClientCore: InitializeAsync | Initialization completed");
     }
 
     public async Task ShutdownAsync()
@@ -46,7 +38,6 @@ public class ClientCore(IClientSettings settings)
         
         _networkClient!.SessionNetworkReady -= OnNetSessionReady; // TODO move to better place
         _networkClient.Dispose();
-        Log.Print("ClientCore: ShutdownAsync | Shutdown complete");
     }
 
     public void EnqueueCommand(ICommand command)
@@ -56,8 +47,8 @@ public class ClientCore(IClientSettings settings)
             case QuitCommand:
                 HandleQuit();
                 break;
-            case IGameCommand gameCommand:
-                EnqueueGameCommand(gameCommand);
+            case Command cmd:
+                EnqueueCommand(cmd);
                 break;
         }
     }
@@ -65,66 +56,35 @@ public class ClientCore(IClientSettings settings)
     private void HandleQuit()
     {
         // If no session is active. Stop program
-        if (_gameSession is not { Running: true })
+        if (_session is not { Running: true })
         {
-            Log.Print("ClientCore: HandleQuit | Called without Running Game Session. Stopping Client");
             ShouldExit.TrySetResult();
         }
         else
         {
-            Log.Print("ClientCore: HandleQuit | Stopping game session");
-            _gameSession!.Stop();
+            _session!.Stop();
         }
     }
 
-    private void EnqueueGameCommand(IGameCommand command)
+    private void EnqueueCommand(ICommand command)
     {
-        if (_gameSession == null)
+        if (_session == null)
         {
-            Log.Print("ClientCore: EnqueueGameCommand | Can't enqueue a command when no session is running",
-                LogLevel.Warning);
             return;
         }
         
-        Log.Print($"ClientCore: EnqueueGameCommand | Enqueue command: {command}", LogLevel.Verbose);
-        _gameSession!.EnqueueCommand(command);
+        _session!.EnqueueCommand(command);
     }
 
-    // private void HandleClientCommand(IClientCommand command)
-    // {
-    //     switch (command)
-    //     {
-    //         case CreateSessionCommand cmd:
-    //             _networkClient.Matchmaker?.CreateLobby(cmd.Id, cmd.MaxPeers, cmd.Public);
-    //             break;
-    //         case JoinSessionCommand cmd:
-    //             _networkClient.Matchmaker?.JoinLobby(cmd.Id);
-    //             break;
-    //         case StartSessionCommand:
-    //             _networkClient.Matchmaker?.StartOrReady();
-    //             break;
-    //         case CancelSessionStartCommand:
-    //             _networkClient.Matchmaker?.CancelStartOrReady();
-    //             break;
-    //         case UpdateSessionCommand cmd:
-    //             _networkClient.Matchmaker?.UpdateLobby(cmd.MaxPeers);
-    //             break;
-    //     }
-    // }
-
-    private void OnNetSessionReady(IGameNetwork gameNetwork)
+    private void OnNetSessionReady(ISessionNetwork network)
     {
-        // Create the game network for this session
-        Log.Print("ClientCore: OnNetSessionReady | Net session ready", LogLevel.Verbose);
         SimReady?.Invoke();
-        _gameSession = new ClientGameSession(gameNetwork);
-        // _gameSession.Start();
+        _session = new ClientSession(network);
     }
 
-    public void StartGameSession()
+    public void StartSession()
     {
-        Log.Print("ClientCore: StartGameSession | Starting game session", LogLevel.Verbose);
-        _gameSession?.Start();
+        _session?.Start();
     }
     
     private void InitConsoleLogger()

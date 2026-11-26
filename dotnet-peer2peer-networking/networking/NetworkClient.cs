@@ -1,4 +1,3 @@
-using NetworkingDemo.Shared.Logging;
 using NetworkingDemo.Shared.Settings;
 using NetworkingDemo.Shared.Types;
 
@@ -32,10 +31,10 @@ public enum NetworkType
 
 public class NetworkClient(UserProfileDto userProfileDto) : IDisposable
 {
-    public event Action<IGameNetwork>? SessionNetworkReady;
+    public event Action<INetwork>? SessionNetworkReady;
     public UserProfileDto UserProfile { get; private set; } = userProfileDto;
     public IMatchmaker? Matchmaker => _selectedStack?.Matchmaker;
-    public IGameNetwork? GameNetwork => _selectedStack?.GameNetwork;
+    public INetwork? Network => _selectedStack?.Network;
     // private PacketRouter _packetRouter { get; set; }
     private readonly List<INetStack> _netStacks = new();
     private INetStack? _selectedStack;
@@ -56,21 +55,16 @@ public class NetworkClient(UserProfileDto userProfileDto) : IDisposable
 
     private async Task InitCustomUdp()
     {
-        Log.Print("NetworkClient: InitCustomUdp | Starting to init custom network", LogLevel.Verbose);
         CustomNetStack netStack = new CustomNetStack();
-        Log.Print("NetworkClient: InitCustomUdp | Created CustomNetStack", LogLevel.Verbose);
-
+        
         if (!await netStack.Init(UserProfile))
         {
-            Log.Print("NetworkClient: InitCustomUdp | Failed to initialize custom network stack", LogLevel.Error);
             return;
         }
 
         netStack.SessionNetworkReady += OnSessionNetworkReady;
-        Log.Print("NetworkClient: InitCustomUdp | Connected OnSessionNetworkReady", LogLevel.Verbose);
         _availableNetworksType |= NetworkType.CustomUdp;
         _netStacks.Add(netStack);
-        Log.Print("NetworkClient: InitCustomUdp | Added CustomNetStack to list", LogLevel.Verbose);
     }
 
     // TODO implement the other stacks when needed
@@ -79,15 +73,13 @@ public class NetworkClient(UserProfileDto userProfileDto) : IDisposable
 
     private void SelectStack()
     {
-        Log.Print("NetworkClient: SelectStack | Selecting stack", LogLevel.Verbose);
-
         // TODO make this actually switch stacks when more are implemented
         _selectedStack = _netStacks[0];
     }
 
-    private void OnSessionNetworkReady(IGameNetwork gameNetwork)
+    private void OnSessionNetworkReady(INetwork Network)
     {
-        SessionNetworkReady?.Invoke(gameNetwork);
+        SessionNetworkReady?.Invoke(Network);
     }
 
     public void Dispose()
